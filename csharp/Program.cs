@@ -85,7 +85,7 @@ partial class Program
 
         if (request.HttpMethod != "POST") throw new Exception("Please call with a method of POST");
         if (origin != "http://localhost:5173") throw new Exception("Please call from the origin http://localhost:5173");
-        if (contentType == null || !contentType.Contains("multipart/form-data") || string.IsNullOrEmpty(contentType)) throw new Exception("Please call with a content-type of multipart/form-data");
+        if (string.IsNullOrEmpty(contentType) || !contentType.Contains("multipart/form-data")) throw new Exception("Please call with a content-type of multipart/form-data");
 
         return contentType;
     }
