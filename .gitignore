@@ -1,0 +1,12 @@
+.vscode
+
+react/dist
+react/node_modules
+react/.env.development
+react/.env.production
+
+csharp/bin
+csharp/obj
+
+node/dist
+node/node_modules

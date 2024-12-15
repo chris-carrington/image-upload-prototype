@@ -1,0 +1,19 @@
+{
+  "name": "node",
+  "private": true,
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "tsc && npm run start"
+  },
+  "dependencies": {
+    "multiparty": "^4.2.3"
+  },
+  "devDependencies": {
+    "@types/multiparty": "^4.2.1",
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2"
+  }
+}

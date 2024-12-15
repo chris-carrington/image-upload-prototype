@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",                            // Set the target version for JavaScript
+    "module": "ESNext",                            // Use ES modules (required for "type": "module" in package.json)
+    "moduleResolution": "Node",                    // Use Node.js module resolution
+    "strict": true,                                // Enable all strict type-checking options
+    "esModuleInterop": true,                       // Enable compatibility between CommonJS and ES modules
+    "skipLibCheck": true,                          // Skip type checking of declaration files for faster builds
+    "forceConsistentCasingInFileNames": true,      // Ensure consistent casing in file names
+    "outDir": "./dist",                            // Output directory for compiled files
+    "rootDir": "./",                               // Root directory for TypeScript source files
+    "resolveJsonModule": true,                     // Allow importing JSON modules
+    "allowJs": true,                               // Allow JavaScript files alongside TypeScript files (if needed)
+    "lib": ["ES2022", "DOM"],                      // Include necessary libraries for both server-side and potential browser interaction
+    "declaration": true                            // Generate .d.ts files (optional, but helpful for type safety)
+  },
+  "include": ["server.ts", "src/**/*"],             // Include your main TypeScript files and any others in a src folder (if you have one)
+  "exclude": ["node_modules", "dist"]               // Exclude the node_modules and dist directories
+}
