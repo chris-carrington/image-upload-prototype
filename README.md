@@ -24,3 +24,7 @@
     * Variables, functions, and classes declared in a module are scoped to that module and do not pollute the global namespace
     * Module scripts are automatically executed in strict mode, which enforces stricter parsing and error handling of JavaScript code
     * Supports ES6 module syntax like `import` & `export`
+
+
+### Microsoft Web Utilities
+- https://www.nuget.org/packages/Microsoft.AspNetCore.WebUtilities/2.1.1
