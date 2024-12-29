@@ -188,7 +188,6 @@ partial class Program
             extension = Path.GetExtension(filename);
 
             if (string.IsNullOrEmpty(extension)) throw new Exception(error);
-
             if (!ImageExtensions.Contains(extension)) throw new Exception($"Please ensure the image extension is one of the following: { ImageExtensions }");
         }
 
