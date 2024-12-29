@@ -5,7 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.WebUtilities;
 
 
-partial class Program
+class Program
 {
     public static async Task Main ()
     {
