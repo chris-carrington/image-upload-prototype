@@ -249,8 +249,8 @@ partial class Program
 
     private static void SetResponseHeaders (HttpListenerResponse response)
     {
-        response.Headers.Add("Access-Control-Allow-Origin", "http://localhost:5174");
-        response.Headers.Add("Access-Control-Allow-Methods", "POST, OPTIONS");
+        response.Headers.Add("Access-Control-Allow-Origin", AllowedOrigin);
+        response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
     }
 
@@ -281,7 +281,7 @@ partial class Program
         var contentType = request.Headers["Content-Type"];
 
         if (request.HttpMethod != "POST") throw new Exception("Please call with a method of POST");
-        if (request.Headers["Origin"] != "http://localhost:5174") throw new Exception("Please call from the origin http://localhost:5174");
+        if (request.Headers["Origin"] != AllowedOrigin) throw new Exception($"Please call from the origin { AllowedOrigin }");
         if (string.IsNullOrEmpty(contentType) || !contentType.Contains("multipart/form-data")) throw new Exception("Please call with a content-type of multipart/form-data");
 
         return contentType;
@@ -321,6 +321,9 @@ partial class Program
         using var output = response.OutputStream;
         output.Write(buffer, 0, buffer.Length); // writes data to the OutputStream
     }
+
+
+    private static readonly string AllowedOrigin = "http://localhost:5174";
 
 
     private static readonly int MaxImageWidth = 600;
