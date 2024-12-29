@@ -1,5 +1,25 @@
 # Image Upload Prototype
 
+### Content Type
+- A content-type of multipart/form-data indicates that in the request body, each piece of data (form field, file upload, etc) contains its own section
+- The boundary is a unique delimiter (example: ------WebKitFormBoundaryECOAm72ObCFGjWIt) that separates different sections in the request body
+- When the server processes the request, it uses the boundary (which is provided in the request header content-type) to split the request body into sections
+- Example Header: 
+    ```
+    content-type: multipart/form-data; boundary=----WebKitFormBoundaryECOAm72ObCFGjWIt
+    ```
+- Example Body
+    ```
+    ------WebKitFormBoundaryECOAm72ObCFGjWIt
+    Content-Disposition: form-data; name="image"; filename="image.jpg"
+    Content-Type: image/jpeg
+    <binary content of image.jpg>
+    ------WebKitFormBoundaryECOAm72ObCFGjWIt
+    Content-Disposition: form-data; name="customerId"
+    123456
+    ------WebKitFormBoundaryECOAm72ObCFGjWIt--
+    ```
+
 ### How to run in development
 1. In bash run `cd react && npm run dev`
     - If this is your first time running, in the `react` folder:
