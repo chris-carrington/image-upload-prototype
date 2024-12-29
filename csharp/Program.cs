@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using SkiaSharp;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.WebUtilities;
@@ -24,16 +25,10 @@ partial class Program
                     continue;  // makes sure the while(true) loop skips further processing for OPTIONS request, so no additional logic is executed for this type of request.
                 }
 
-                var contentType = ValidateRequest(request);
-                var boundary = GetBoundary(contentType);
-                var formData = await ParseMultipartFormDataAsync(request.InputStream, boundary);
-                var customerIdFormDataValue = formData["customerId"] ?? throw new Exception("Please ensure the customerId is in the request"); // the null-coalescing operator (??) allows the expression after ?? to be run if the expression before ?? is null
-                var imageFormDataValue = formData["image"] ?? throw new Exception("Please ensure the image is in the request");
-                var imageAsBase64 = Convert.ToBase64String(imageFormDataValue.Bytes); // convert byte array to base64
-                var customerIdAsString = Encoding.UTF8.GetString(customerIdFormDataValue.Bytes);
-                Console.WriteLine(imageFormDataValue.Extension);
+                var requestPath = GetRequestPath(request);
 
-                OnSuccess(response, imageAsBase64, customerIdAsString);
+                if (requestPath == "/image-upload") ProcessImageUploadRequest(request, response);
+                else ProcessImagesRequest(request, response, requestPath);
             }
             catch (Exception exception)
             {
@@ -44,86 +39,15 @@ partial class Program
     }
 
 
-    private static HttpListener StartServer ()
+    private static async void ProcessImageUploadRequest (HttpListenerRequest request, HttpListenerResponse response)
     {
-        HttpListener listener = new();
-        listener.Prefixes.Add("http://localhost:3000/");
-        listener.Start();
-        Console.WriteLine("Server is listening on http://localhost:3000/");
+        var contentType = ValidateImageUploadRequest(request);
+        var boundary = GetBoundary(contentType);
+        var requestBody = await ParseMultipartFormDataAsync(request.InputStream, boundary);
+        var filename = await SaveImage(requestBody);
+        var customerIdAsString = Encoding.UTF8.GetString(requestBody.CustomerIdBytes); // bytes to string
 
-        return listener;
-    }
-
-
-    private static async Task<(HttpListenerRequest request, HttpListenerResponse response)> GetContextAsync (HttpListener listener)
-    {
-        HttpListenerContext context = await listener.GetContextAsync();
-        return (request: context.Request, response: context.Response);
-    }
-
-
-    private static void SetResponseHeaders (HttpListenerResponse response)
-    {
-        response.Headers.Add("Access-Control-Allow-Origin", "http://localhost:5174");
-        response.Headers.Add("Access-Control-Allow-Methods", "POST, OPTIONS");
-        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
-    }
-
-
-    private static void OnOptions (HttpListenerResponse response)
-    {
-        response.StatusCode = (int)HttpStatusCode.OK;  // 200 OK
-        response.ContentLength64 = 0;  // no content to send
-        response.Close();  // close the response immediately
-    }
-
-
-    private static string ValidateRequest (HttpListenerRequest request)
-    {
-        var origin = request.Headers["Origin"];
-        var contentType = request.Headers["Content-Type"];
-
-        if (request.HttpMethod != "POST") throw new Exception("Please call with a method of POST");
-        if (origin != "http://localhost:5174") throw new Exception("Please call from the origin http://localhost:5174");
-        if (request.Url == null || request.Url.AbsolutePath != "/image-upload") throw new Exception("Please call the endpoint /image-upload");
-        if (string.IsNullOrEmpty(contentType) || !contentType.Contains("multipart/form-data")) throw new Exception("Please call with a content-type of multipart/form-data");
-
-        return contentType;
-    }
-
-
-    private static void OnError (HttpListenerResponse response, string message)
-    {
-        var jsonResponse = new { success = false, message };
-        WriteResponse(response, JsonToByteArray(jsonResponse), (int)HttpStatusCode.BadRequest);
-    }
-
-
-    private static void OnSuccess (HttpListenerResponse response, string base64, string customerId)
-    {
-        var jsonResponse = new { success = true, base64, customerId };
-        WriteResponse(response, JsonToByteArray(jsonResponse));
-    }
-
-
-    private static byte[] JsonToByteArray (object jsonResponse)
-    {
-        var jsonString = JsonSerializer.Serialize(jsonResponse); // convert json object to a string
-        return Encoding.UTF8.GetBytes(jsonString); // convert string to byte array
-    }
-
-
-    private static void WriteResponse (HttpListenerResponse response, byte[] buffer, int statusCode = 200)
-    {
-        response.ContentLength64 = buffer.Length;
-        response.ContentType = "application/json";
-        response.StatusCode = statusCode;
-
-        // Opens the output stream for writing data to the client
-        // The using statement ensures that after writing the data, the OutputStream is automatically closed (Response.OutputStream.Close()) and disposed of (Resposne.OutputStream.Dispose()), which frees up the associated resources. If an exception is thrown, the using statement ensures the stream is still disposed of correctly.
-        // creates a variable output that holds the OutputStream
-        using var output = response.OutputStream;
-        output.Write(buffer, 0, buffer.Length); // writes data to the OutputStream
+        OnImageUploadSuccess(response, filename, customerIdAsString);
     }
 
 
@@ -142,31 +66,65 @@ partial class Program
     }
 
 
-    private static async Task<Dictionary<string, FormDataValue>> ParseMultipartFormDataAsync (Stream requestBody, string boundary)
+    private static void ProcessImagesRequest (HttpListenerRequest request, HttpListenerResponse response, string requestPath)
     {
-        var formData = new Dictionary<string, FormDataValue>();
-        var reader = new MultipartReader(boundary, requestBody); // The MultipartReader class is used to parse multipart data in an HTTP request
+        ValidateImagesRequest(request);
+
+        string imagePath = requestPath[1..]; // Remove leading '/'
+        string fullPath = Path.Combine(Directory.GetCurrentDirectory(), imagePath);
+
+        if (!File.Exists(fullPath)) throw new Exception("File not found");
+        else
+        {
+            byte[] imageBytes = File.ReadAllBytes(fullPath);
+            string extension = Path.GetExtension(fullPath).ToLowerInvariant();
+            var contentType = ExtensionToContentType[extension] ?? throw new Exception("Please ensure the extension is valid");
+            WriteResponse(response, imageBytes, 200, contentType);
+        }
+    }
+
+
+    private static async Task<RequestBody> ParseMultipartFormDataAsync (Stream bodyAsBytes, string boundary)
+    {
+        byte[]? imageBytes = null;
+        string? imageExtension = null;
+        byte[]? customerIdBytes = null;
+
+        var reader = new MultipartReader(boundary, bodyAsBytes); // The MultipartReader class is used to parse multipart data in an HTTP request
         var section = await reader.ReadNextSectionAsync(); // reads the next "section" from the multipart stream asynchronously
 
         while (section != null) 
         {
             var contentDisposition = GetContentDisposition(section);
-            var extension = GetExtension(contentDisposition, section.ContentType);
             var sectionName = GetSectionName(contentDisposition); // based on the following example, the name would be customerId, Example Section Header: Content-Disposition: form-data; name="customerId"
-            var content = await GetSectionContentAsync(section); // Rrad the content of the section as a byte array
 
-            formData[sectionName] = new FormDataValue { Bytes = content, Extension = extension };
+            switch (sectionName) 
+            {
+                case "customerId":
+                    customerIdBytes = await GetSectionContentAsync(section);
+                    break;
+                case "image":
+                    imageBytes = await GetSectionContentAsync(section);
+                    imageExtension = GetExtension(contentDisposition, section.ContentType);
+                    break;
+            }
+
             section = await reader.ReadNextSectionAsync(); // move to the next section
         }
 
-        return formData;
+        if (customerIdBytes == null) throw new Exception("Please ensure the customerId is in the request"); // the null-coalescing operator (??) allows the expression after ?? to be run if the expression before ?? is null
+        if (imageBytes == null) throw new Exception("Please ensure the image is in the request");
+        if (string.IsNullOrEmpty(imageExtension)) throw new Exception($"Please ensure the image extension is one of the following: { ImageExtensions }");
+
+        return new RequestBody { CustomerIdBytes = customerIdBytes, ImageBytes = imageBytes, ImageExtension = imageExtension };
     }
 
 
-    private class FormDataValue
+    private class RequestBody
     {
-        public required byte[] Bytes { get; set; }
-        public string? Extension { get; set; }
+        public required byte[] CustomerIdBytes { get; set; }
+        public required byte[] ImageBytes { get; set; }
+        public required string ImageExtension { get; set; }
     }
 
 
@@ -208,10 +166,11 @@ partial class Program
     private static string? GetExtension (string contentDisposition, string? contentType)
     {
         string? extension = null;
-        var imageContentTypes = new HashSet<string> { "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp" };
 
-        if (contentType != null && imageContentTypes.Contains(contentType))
+        if (contentType != null)
         {
+            if (!ImageContentTypes.Contains(contentType)) throw new Exception($"Please ensure the image is one of the following content types: { ImageContentTypes }");
+
             string error = "Please ensure each section header in your request body that has a content-type also has a filename, Good Example Section Header: Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"";
             int filenameKeyIndex = contentDisposition.IndexOf("filename=\"", StringComparison.OrdinalIgnoreCase); // find the first index of the string: name=", and ignore case 
 
@@ -230,12 +189,35 @@ partial class Program
 
             if (string.IsNullOrEmpty(extension)) throw new Exception(error);
 
-            var imageExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp" };
-
-            if (!imageExtensions.Contains(extension)) throw new Exception("Please ensue that the image extension is one of the following: '.jpg', '.jpeg', '.png', '.gif', '.webp' or '.bmp'");
+            if (!ImageExtensions.Contains(extension)) throw new Exception($"Please ensure the image extension is one of the following: { ImageExtensions }");
         }
 
         return extension;
+    }
+
+
+    private static async Task<string> SaveImage (RequestBody requestBody)
+    {
+        var timestamp = DateTime.UtcNow.ToString("o"); // "o" stands for "round-trip" format, which is precise and sortable
+        var path = $"{ timestamp }{ requestBody.ImageExtension }";
+        var dirPath = Path.Combine("images", path);
+
+        using var inputStream = new MemoryStream(requestBody.ImageBytes); // byte array to memory stream
+        using var skbitmap = SKBitmap.Decode(inputStream); // memory stream to SKBitmap object (mutable memory representation of an image)
+
+        if (skbitmap.Width <= MaxImageWidth) await File.WriteAllBytesAsync(dirPath, requestBody.ImageBytes); // if less then or equal to max width => write image
+        else
+        {
+            float aspectRatio = (float)skbitmap.Height / skbitmap.Width;
+            int newHeight = (int)(MaxImageWidth * aspectRatio); // calculates the new height for the resized image while maintaining the aspect ratio
+            using var resizedSkbitmap = skbitmap.Resize(new SKImageInfo(MaxImageWidth, newHeight), SKSamplingOptions.Default) ?? throw new Exception("Failed to resize image.");
+            using var skimage = SKImage.FromBitmap(resizedSkbitmap); // resized bitmap to SKImage object (immutable memory representation of an image)
+            using var skdata = skimage.Encode(ExtensionToSkiImageFormat[requestBody.ImageExtension], 100); // SKImage object to SKData object (byte array + image meta data)
+            using var outputStream = File.OpenWrite(dirPath); // opens a writable file stream to the specified dirPath
+            skdata.SaveTo(outputStream); // saves the image data to the output file stream
+        }
+
+        return path;
     }
 
 
@@ -245,4 +227,133 @@ partial class Program
         await section.Body.CopyToAsync(memoryStream); // asynchronously copies the content of section.Body to the memoryStream in chunks
         return memoryStream.ToArray(); // converts memoryStream to a byte array
     }
+
+
+    private static HttpListener StartServer ()
+    {
+        HttpListener listener = new();
+        listener.Prefixes.Add("http://localhost:3000/");
+        listener.Start();
+        Console.WriteLine("Server is listening on http://localhost:3000/");
+
+        return listener;
+    }
+
+
+    private static async Task<(HttpListenerRequest request, HttpListenerResponse response)> GetContextAsync (HttpListener listener)
+    {
+        HttpListenerContext context = await listener.GetContextAsync();
+        return (request: context.Request, response: context.Response);
+    }
+
+
+    private static void SetResponseHeaders (HttpListenerResponse response)
+    {
+        response.Headers.Add("Access-Control-Allow-Origin", "http://localhost:5174");
+        response.Headers.Add("Access-Control-Allow-Methods", "POST, OPTIONS");
+        response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+    }
+
+
+    private static void OnOptions (HttpListenerResponse response)
+    {
+        response.StatusCode = (int)HttpStatusCode.OK;  // 200 OK
+        response.ContentLength64 = 0;  // no content to send
+        response.Close();  // close the response immediately
+    }
+
+
+    private static string GetRequestPath (HttpListenerRequest request)
+    {
+        if (request.Url == null || (request.Url.AbsolutePath != "/image-upload" && !request.Url.AbsolutePath.StartsWith("/images/"))) throw new Exception("Please call the endpoint /image-upload with a POST or /images with a GET");
+        return request.Url.AbsolutePath;
+    }
+
+
+    private static void ValidateImagesRequest (HttpListenerRequest request)
+    {
+        if (request.HttpMethod != "GET") throw new Exception("Please call with a method of GET");
+    }
+
+
+    private static string ValidateImageUploadRequest (HttpListenerRequest request)
+    {
+        var contentType = request.Headers["Content-Type"];
+
+        if (request.HttpMethod != "POST") throw new Exception("Please call with a method of POST");
+        if (request.Headers["Origin"] != "http://localhost:5174") throw new Exception("Please call from the origin http://localhost:5174");
+        if (string.IsNullOrEmpty(contentType) || !contentType.Contains("multipart/form-data")) throw new Exception("Please call with a content-type of multipart/form-data");
+
+        return contentType;
+    }
+
+
+    private static void OnError (HttpListenerResponse response, string message)
+    {
+        var jsonResponse = new { success = false, message };
+        WriteResponse(response, JsonToByteArray(jsonResponse), (int)HttpStatusCode.BadRequest);
+    }
+
+
+    private static void OnImageUploadSuccess (HttpListenerResponse response, string filename, string customerId)
+    {
+        var jsonResponse = new { success = true, filename, customerId };
+        WriteResponse(response, JsonToByteArray(jsonResponse));
+    }
+
+
+    private static byte[] JsonToByteArray (object jsonResponse)
+    {
+        var jsonString = JsonSerializer.Serialize(jsonResponse); // convert json object to a string
+        return Encoding.UTF8.GetBytes(jsonString); // convert string to byte array
+    }
+
+
+    private static void WriteResponse (HttpListenerResponse response, byte[] buffer, int statusCode = 200, string contentType = "application/json")
+    {
+        response.StatusCode = statusCode;
+        response.ContentType = contentType;
+        response.ContentLength64 = buffer.Length;
+
+        // Opens the output stream for writing data to the client
+        // The using statement ensures that after writing the data, the OutputStream is automatically closed (Response.OutputStream.Close()) and disposed of (Resposne.OutputStream.Dispose()), which frees up the associated resources. If an exception is thrown, the using statement ensures the stream is still disposed of correctly.
+        // creates a variable output that holds the OutputStream
+        using var output = response.OutputStream;
+        output.Write(buffer, 0, buffer.Length); // writes data to the OutputStream
+    }
+
+
+    private static readonly int MaxImageWidth = 600;
+
+
+    private static readonly HashSet<string> ImageContentTypes =
+    [
+        "image/jpeg", "image/png", "image/webp", "image/bmp"
+    ];
+
+
+    private static readonly HashSet<string> ImageExtensions =
+    [
+        ".jpg", ".jpeg", ".png", ".webp", ".bmp"
+    ];
+
+
+    private static readonly Dictionary<string, string> ExtensionToContentType = new()
+    {
+        { ".jpg", "image/jpeg" },
+        { ".jpeg", "image/jpeg" },
+        { ".png", "image/png" },
+        { ".webp", "image/webp" },
+        { ".bmp", "image/bmp" }
+    };
+
+
+    private static readonly Dictionary<string, SKEncodedImageFormat> ExtensionToSkiImageFormat = new()
+    {
+        { ".jpg", SKEncodedImageFormat.Jpeg },
+        { ".jpeg", SKEncodedImageFormat.Jpeg },
+        { ".png", SKEncodedImageFormat.Png },
+        { ".webp", SKEncodedImageFormat.Webp },
+        { ".bmp", SKEncodedImageFormat.Bmp }
+    };
 }

@@ -25,7 +25,7 @@ export default function ImageUpload (): React.ReactElement {
         {( beImageSrc &&
           <div className="img">
             <div className="title">Backend Response:</div>
-            { beImageSrc && <img src={`data:image/png;base64,${ beImageSrc }`}  alt="beImageSrc" /> }
+            { beImageSrc && <img src={`http://localhost:3000/images/${ beImageSrc }`}  alt="beImageSrc" /> }
           </div>
         )}
       </div>
@@ -69,7 +69,7 @@ async function uploadImage (file: File | null, setBeImageSrc: React.Dispatch<Rea
       const response = await fetch(import.meta.env.VITE_API_URL, { method: 'POST', body: formData })
       const result = await response.json()
 
-      setBeImageSrc(result.base64)
+      setBeImageSrc(result.filename)
     }
   } catch (error) {
     console.error('Error uploading the file:', error);
