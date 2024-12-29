@@ -112,7 +112,7 @@ partial class Program
             section = await reader.ReadNextSectionAsync(); // move to the next section
         }
 
-        if (customerIdBytes == null) throw new Exception("Please ensure the customerId is in the request"); // the null-coalescing operator (??) allows the expression after ?? to be run if the expression before ?? is null
+        if (customerIdBytes == null) throw new Exception("Please ensure the customerId is in the request");
         if (imageBytes == null) throw new Exception("Please ensure the image is in the request");
         if (string.IsNullOrEmpty(imageExtension)) throw new Exception($"Please ensure the image extension is one of the following: { ImageExtensions }");
 
