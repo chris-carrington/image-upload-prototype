@@ -26,7 +26,7 @@
         - In bash run `nvm use 22`
         - Add & populate the `.env.development` and `.env.production`file
 1. In bash run `cd csharp && dotnet run`
-    - If this is your first time running, in the `csharp` folder, in bash run `dotnet add package Microsoft.AspNetCore.WebUtilities`
+    - If this is your first time running, in the `csharp` folder, in bash run `dotnet add package Microsoft.AspNetCore.WebUtilities && dotnet add package SkiaSharp`
 
 
 ### How to run in production:
@@ -46,5 +46,6 @@
     * Supports ES6 module syntax like `import` & `export`
 
 
-### Microsoft Web Utilities
+### Packages
+- https://www.nuget.org/packages/SkiaSharp
 - https://www.nuget.org/packages/Microsoft.AspNetCore.WebUtilities/2.1.1
