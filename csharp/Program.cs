@@ -114,7 +114,7 @@ class Program
 
         if (customerIdBytes == null) throw new Exception("Please ensure the customerId is in the request");
         if (imageBytes == null) throw new Exception("Please ensure the image is in the request");
-        if (string.IsNullOrEmpty(imageExtension)) throw new Exception($"Please ensure the image extension is one of the following: { ImageExtensions }");
+        if (string.IsNullOrEmpty(imageExtension)) throw new Exception($"Please ensure the image extension is one of the following: { string.Join(", ", ImageExtensions) }");
 
         return new RequestBody { CustomerIdBytes = customerIdBytes, ImageBytes = imageBytes, ImageExtension = imageExtension };
     }
@@ -169,7 +169,7 @@ class Program
 
         if (contentType != null)
         {
-            if (!ImageContentTypes.Contains(contentType)) throw new Exception($"Please ensure the image is one of the following content types: { ImageContentTypes }");
+            if (!ImageContentTypes.Contains(contentType)) throw new Exception($"Please ensure the image is one of the following content types: { string.Join(", ", ImageContentTypes) }");
 
             string error = "Please ensure each section header in your request body that has a content-type also has a filename, Good Example Section Header: Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"";
             int filenameKeyIndex = contentDisposition.IndexOf("filename=\"", StringComparison.OrdinalIgnoreCase); // find the first index of the string: name=", and ignore case 
@@ -188,7 +188,7 @@ class Program
             extension = Path.GetExtension(filename);
 
             if (string.IsNullOrEmpty(extension)) throw new Exception(error);
-            if (!ImageExtensions.Contains(extension)) throw new Exception($"Please ensure the image extension is one of the following: { ImageExtensions }");
+            if (!ImageExtensions.Contains(extension)) throw new Exception($"Please ensure the image extension is one of the following: { string.Join(", ", ImageExtensions) }");
         }
 
         return extension;
