@@ -144,21 +144,7 @@ class Program
 
     private static string GetSectionName (string contentDisposition)
     {
-        string error = "Please ensure each section header in your request body has a name, Good Example Section Header: Content-Disposition: form-data; name=\"customerId\"";
-        int nameKeyIndex = contentDisposition.IndexOf("name=\"", StringComparison.OrdinalIgnoreCase); // find the first index of the string: name=", and ignore case 
-
-        if (nameKeyIndex == -1) throw new Exception(error);
-
-        var nameValueStartIndex = nameKeyIndex + 6; // after "name=\"" get the index of the name value start
-        var nameValueEndIndex = contentDisposition.IndexOf("\"", nameValueStartIndex, StringComparison.OrdinalIgnoreCase); // finds the index of the closing quotation mark (") for the name value
-
-        if (nameValueEndIndex == -1) throw new Exception(error);
-        
-        string name = contentDisposition[nameValueStartIndex..nameValueEndIndex]; // substring, from start index to end index
-
-        if (string.IsNullOrEmpty(name)) throw new Exception(error);
-
-        return name;
+        return GetSectionHeaderValue(SectionHeaderKey.Name, contentDisposition, "Please ensure each section header in your request body has a name, Good Example Section Header: Content-Disposition: form-data; name=\"customerId\"");
     }
 
 
@@ -172,18 +158,7 @@ class Program
             if (!ImageContentTypes.Contains(contentType)) throw new Exception($"Please ensure the image is one of the following content types: { string.Join(", ", ImageContentTypes) }");
 
             string error = "Please ensure each section header in your request body that has a content-type also has a filename, Good Example Section Header: Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"";
-            int filenameKeyIndex = contentDisposition.IndexOf("filename=\"", StringComparison.OrdinalIgnoreCase); // find the first index of the string: name=", and ignore case 
-
-            if (filenameKeyIndex == -1) throw new Exception(error);
-
-            var filenameValueStartIndex = filenameKeyIndex + 10; // after "filename=\"" get the index of the filename value start
-            var filenameValueEndIndex = contentDisposition.IndexOf("\"", filenameValueStartIndex, StringComparison.OrdinalIgnoreCase); // finds the index of the closing quotation mark (") for the filename value
-
-            if (filenameValueEndIndex == -1) throw new Exception(error);
-
-            var filename = contentDisposition[filenameValueStartIndex..filenameValueEndIndex]; // substring, from start index to end index
-
-            if (string.IsNullOrEmpty(filename)) throw new Exception(error);
+            string filename = GetSectionHeaderValue(SectionHeaderKey.Filename, contentDisposition, error);
 
             extension = Path.GetExtension(filename);
 
@@ -193,6 +168,43 @@ class Program
 
         return extension;
     }
+
+
+    private static string GetSectionHeaderValue (SectionHeaderKey key, string contentDisposition, string error)
+    {
+        int keyLength;
+        string keyValue;
+
+        switch (key)
+        {
+            case SectionHeaderKey.Name:
+                keyLength = 6;
+                keyValue = "name=\"";
+                break;
+            default:
+                keyLength = 10;
+                keyValue = "filename=\"";
+                break;
+        }
+
+        int valueKeyIndex = contentDisposition.IndexOf(keyValue, StringComparison.OrdinalIgnoreCase); // find the first index of the string, example: name=", and ignore case 
+
+        if (valueKeyIndex == -1) throw new Exception(error);
+
+        var valueStartIndex = valueKeyIndex + keyLength; // after example: "name=\"" get the index of the name value start
+        var valueEndIndex = contentDisposition.IndexOf("\"", valueStartIndex, StringComparison.OrdinalIgnoreCase); // finds the index of the closing quotation mark (") for the example: name value
+
+        if (valueEndIndex == -1) throw new Exception(error);
+        
+        string value = contentDisposition[valueStartIndex..valueEndIndex]; // substring, from start index to end index
+
+        if (string.IsNullOrEmpty(value)) throw new Exception(error);
+
+        return value;
+    }
+
+
+    private enum SectionHeaderKey { Name, Filename }
 
 
     private static async Task<string> SaveImage (RequestBody requestBody)
