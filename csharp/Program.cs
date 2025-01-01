@@ -334,7 +334,7 @@ class Program
     }
 
 
-    private static readonly string AllowedOrigin = "http://localhost:5174";
+    private static readonly string AllowedOrigin = "http://localhost:5173";
 
 
     private static readonly int MaxImageWidth = 600;
